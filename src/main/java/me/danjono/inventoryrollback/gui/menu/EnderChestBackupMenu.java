@@ -1,22 +1,22 @@
 package me.danjono.inventoryrollback.gui.menu;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
-
 import com.nuclyon.technicallycoded.inventoryrollback.InventoryRollbackPlus;
-import org.bukkit.Bukkit;
-import org.bukkit.entity.Player;
-import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.ItemStack;
-
 import me.danjono.inventoryrollback.config.ConfigData;
 import me.danjono.inventoryrollback.config.MessageData;
 import me.danjono.inventoryrollback.data.LogType;
 import me.danjono.inventoryrollback.data.PlayerData;
 import me.danjono.inventoryrollback.gui.Buttons;
 import me.danjono.inventoryrollback.gui.InventoryName;
-import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemStack;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class EnderChestBackupMenu {
 
@@ -83,35 +83,28 @@ public class EnderChestBackupMenu {
 
         //If the backup file is invalid it will return null, we want to catch it here
         try {
-
             // Add items, 5 per tick
-            new BukkitRunnable() {
-
-                int invPosition = 0;
-                int itemPos = (pageNumber - 1) * 27;
-                final int max = Math.max(0, itemPos + Math.min(enderchest.length - itemPos, 27)); // excluded but starts from 0
-
-                @Override
-                public void run() {
-                    for (int i = 0; i < 6; i++) {
-                        // If hit max item position, stop
-                        if (itemPos >= max) {
-                            this.cancel();
-                            return;
-                        }
-
-
-                        ItemStack itemStack = enderchest[itemPos];
-                        if (itemStack != null) {
-                            inventory.setItem(invPosition, itemStack);
-                            // Don't change inv position if there was nothing to place
-                            invPosition++;
-                        }
-                        // Move to next item stack
-                        itemPos++;
+            AtomicInteger invPosition = new AtomicInteger(0);
+            AtomicInteger itemPos = new AtomicInteger((pageNumber - 1) * 27);
+            final int max = Math.max(0, itemPos.get() + Math.min(enderchest.length - itemPos.get(), 27)); // excluded but starts from 0
+            InventoryRollbackPlus.getInstance().getServer().getAsyncScheduler().runAtFixedRate(InventoryRollbackPlus.getInstance(), task -> {
+                for (int i = 0; i < 6; i++) {
+                    // If hit max item position, stop
+                    if (itemPos.get() >= max) {
+                        task.cancel();
+                        return;
                     }
+
+                    ItemStack itemStack = enderchest[itemPos.get()];
+                    if (itemStack != null) {
+                        inventory.setItem(invPosition.get(), itemStack);
+                        // Don't change inv position if there was nothing to place
+                        invPosition.set(invPosition.get()+1);
+                    }
+                    // Move to next item stack
+                    itemPos.set(itemPos.get()+1);
                 }
-            }.runTaskTimer(InventoryRollbackPlus.getInstance(), 0, 1);
+            }, 0, 50, TimeUnit.MILLISECONDS);
         } catch (NullPointerException e) {
             staff.sendMessage(MessageData.getPluginPrefix() + MessageData.getErrorInventory());
             return;

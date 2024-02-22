@@ -4,7 +4,8 @@ version: ${project.version}
 description: ${project.description}
 author: ${project.organization.name}
 authors: [${project.organization.name}, danjono]
-api-version: 1.13
+api-version: 1.20
+folia-supported: true
 commands:
   inventoryrollbackplus:
     description: ${project.description}

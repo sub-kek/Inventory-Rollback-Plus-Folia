@@ -11,11 +11,12 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class MainInventoryBackupMenu {
 
@@ -79,32 +80,27 @@ public class MainInventoryBackupMenu {
 		//If the backup file is invalid it will return null, we want to catch it here
 		try {
     		// Add items, 5 per tick
-			new BukkitRunnable() {
-
-				int invPosition = 0;
-				int itemPos = 0;
-				final int max = mainInventory.length - 5; // excluded
-
-				@Override
-				public void run() {
-					for (int i = 0; i < 6; i++) {
-						// If hit max item position, stop
-						if (itemPos >= max) {
-							this.cancel();
-							return;
-						}
-
-						ItemStack itemStack = mainInventory[itemPos];
-						if (itemStack != null) {
-							inventory.setItem(invPosition, itemStack);
-							// Don't change inv position if there was nothing to place
-							invPosition++;
-						}
-						// Move to next item stack
-						itemPos++;
+			AtomicInteger invPosition = new AtomicInteger(0);
+			AtomicInteger itemPos = new AtomicInteger(0);
+			final int max = mainInventory.length - 5; // excluded
+			main.getServer().getAsyncScheduler().runAtFixedRate(main, task -> {
+				for (int i = 0; i < 6; i++) {
+					// If hit max item position, stop
+					if (itemPos.get() >= max) {
+						task.cancel();
+						return;
 					}
+
+					ItemStack itemStack = mainInventory[itemPos.get()];
+					if (itemStack != null) {
+						inventory.setItem(invPosition.get(), itemStack);
+						// Don't change inv position if there was nothing to place
+						invPosition.set(invPosition.get()+1);
+					}
+					// Move to next item stack
+					itemPos.set(itemPos.get()+1);
 				}
-			}.runTaskTimer(main, 0, 1);
+			}, 0, 50, TimeUnit.MILLISECONDS);
 		} catch (NullPointerException e) {
 		    staff.sendMessage(MessageData.getPluginPrefix() + MessageData.getErrorInventory());
 		    return;
@@ -120,11 +116,13 @@ public class MainInventoryBackupMenu {
 					// Place item safely
 					final int finalPos = position;
 					final int finalItem = i;
-					Future<Void> placeItemFuture = main.getServer().getScheduler().callSyncMethod(main,
-							() -> {
-								inventory.setItem(finalPos, armour[finalItem]);
-								return null;
-							});
+
+					FutureTask<Void> placeItemFuture = new FutureTask<>(() -> {
+						inventory.setItem(finalPos, armour[finalItem]);
+						return null;
+					});
+					main.getServer().getGlobalRegionScheduler().run(main, t -> placeItemFuture.run());
+
 					placeItemFuture.get();
 					position--;
 				}
@@ -138,11 +136,13 @@ public class MainInventoryBackupMenu {
 						// Place item safely
 						final int finalPos = position;
 						final int finalItem = item;
-						Future<Void> placeItemFuture = main.getServer().getScheduler().callSyncMethod(main,
-								() -> {
-									inventory.setItem(finalPos, mainInventory[finalItem]);
-									return null;
-								});
+
+						FutureTask<Void> placeItemFuture = new FutureTask<>(() -> {
+							inventory.setItem(finalPos, mainInventory[finalItem]);
+							return null;
+						});
+						main.getServer().getGlobalRegionScheduler().run(main, t -> placeItemFuture.run());
+
 						placeItemFuture.get();
 						position--;
 					}
